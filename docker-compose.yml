@@ -1,0 +1,106 @@
+version: "3"
+
+services:
+  mailserver:
+    image: docker.io/mailserver/docker-mailserver:latest
+    hostname: mail.example.com # <-- CHANGE THIS
+    domainname: example.com # <-- CHANGE THIS
+    env_file: mailserver.env
+    ports:
+      - target: 25
+        published: 25
+        mode: host
+      - target: 143
+        published: 143
+        mode: host
+      - target: 465
+        published: 465
+        mode: host
+      - target: 587
+        published: 587
+        mode: host
+      - target: 993
+        published: 993
+        mode: host
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /opt/mailman/core/var/data:/opt/mailman/core/var/data
+      - ./data/maildata:/var/mail
+      - ./data/mailstate:/var/mail-state
+      - ./data/maillogs:/var/log/mail
+      - ./config/:/tmp/docker-mailserver/
+    cap_add: [ "NET_ADMIN", "SYS_PTRACE" ]
+    networks:
+      mailman:
+        aliases:
+          - mail
+
+  mailman-core:
+    image: maxking/mailman-core:0.4
+    volumes:
+      - /opt/mailman/core:/opt/mailman/
+    stop_grace_period: 30s
+    depends_on:
+      - database
+    environment:
+      - MTA=postfix
+      - DATABASE_URL=postgres://mailman:mailmanpass@database/mailmandb
+      - DATABASE_TYPE=postgres
+      - DATABASE_CLASS=mailman.database.postgresql.PostgreSQLDatabase
+      - HYPERKITTY_API_KEY=someapikey # <-- CHANGE THIS
+      - SMTP_HOST=mail
+      - MM_HOSTNAME=mailman-core
+    networks:
+      - mailman
+      - mailman-db
+
+  mailman-web:
+    image: maxking/mailman-web:0.4
+    hostname: ml.example.com
+    depends_on:
+      - database
+    volumes:
+      - /opt/mailman/web:/opt/mailman-web-data
+    environment:
+      - DATABASE_TYPE=postgres
+      - DATABASE_URL=postgres://mailman:mailmanpass@database/mailmandb
+      - HYPERKITTY_API_KEY=someapikey # <-- CHANGE THIS
+      - SECRET_KEY=changeme # <-- CHANGE THIS
+      - MAILMAN_ADMIN_USER=admin # <-- CHANGE THIS
+      - MAILMAN_ADMIN_EMAIL=admin@example.com # <-- CHANGE THIS
+      - SERVE_FROM_DOMAIN=ml.example.com # <-- CHANGE THIS
+      - SMTP_USE_TLS=True
+    networks:
+      mailman:
+        aliases:
+          - mailman-web
+      mailman-db:
+
+  mailman-nginx:
+    image: nginx:1.22-alpine
+    networks:
+      - mailman
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - /opt/mailman/web/static:/opt/mailman/web/static:ro
+    depends_on:
+      - mailman-web
+    ports:
+      - target: 80
+        published: 80
+        mode: host
+
+  database:
+    environment:
+      - POSTGRES_DB=mailmandb
+      - POSTGRES_USER=mailman
+      - POSTGRES_PASSWORD=mailmanpass
+    image: postgres:9.6-alpine
+    volumes:
+      - /opt/mailman/database:/var/lib/postgresql/data
+    networks:
+      - mailman-db
+
+networks:
+  mailman-db:
+  mailman:
