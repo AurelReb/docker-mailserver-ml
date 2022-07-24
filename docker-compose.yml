@@ -7,21 +7,11 @@ services:
     domainname: example.com # <-- CHANGE THIS
     env_file: mailserver.env
     ports:
-      - target: 25
-        published: 25
-        mode: host
-      - target: 143
-        published: 143
-        mode: host
-      - target: 465
-        published: 465
-        mode: host
-      - target: 587
-        published: 587
-        mode: host
-      - target: 993
-        published: 993
-        mode: host
+      - "25:25"
+      - "143:143"
+      - "465:465"
+      - "587:587"
+      - "993:993"
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /opt/mailman/core/var/data:/opt/mailman/core/var/data
@@ -86,9 +76,7 @@ services:
     depends_on:
       - mailman-web
     ports:
-      - target: 80
-        published: 80
-        mode: host
+      - "80:80"
 
   database:
     environment:
